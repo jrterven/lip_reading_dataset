@@ -10,8 +10,8 @@ import speech_recognition as sr
 import datetime
 
 
-videos_directory = '/media/juan/Data/our_dataset/TED'
-scale = 0.25
+videos_directory = '/datasets/Our_dataset/TED'
+scale = 0.5
 max_bad_frames = 5
 min_area = 2500
 
@@ -170,7 +170,7 @@ def main():
                         count = 0
 
                 # if this was a valid video
-                if valid_video:
+                if valid_video and len(bbx1) > 0:
                     num_output_video += 1
 
                     # get final coordinates
@@ -209,31 +209,33 @@ def main():
                     # text_file.close()
 
                     # extract audio from video crop
-                    #ffmpeg -i /home/juan/Videos/ted/1.mp4 -acodec pcm_s16le -ac 1 -ar 16000 out.wav
-                    subprocess.call(['ffmpeg', #'-hide_banner', '-loglevel', 'panic',
-                                    '-i', out_name+'.mp4',
-                                    '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '16000',
-                                    out_name +'.wav'])
+                    if os.path.isfile(out_name+'.mp4'):
+                        #ffmpeg -i /home/juan/Videos/ted/1.mp4 -acodec pcm_s16le -ac 1 -ar 16000 out.wav
+                        subprocess.call(['ffmpeg', #'-hide_banner', '-loglevel', 'panic',
+                                        '-i', out_name+'.mp4',
+                                        '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '16000',
+                                        out_name +'.wav'])
 
+                    if os.path.isfile(out_name+'.wav'):
+                        # recognize audio
+                        with sr.AudioFile(out_name +'.wav') as source: audio = r.record(source)
+                        try:
+                            speech = r.recognize_google(audio, language='es-MX')
+                        except sr.UnknownValueError:
+                            print('Unknow conversion error')
+                            speech = []
 
-                    # recognize audio
-                    with sr.AudioFile(out_name +'.wav') as source: audio = r.record(source)
-                    try:
-                        speech = r.recognize_google(audio, language='es-MX')
-                    except sr.UnknownValueError:
-                        print('Unknow conversion error')
-                        speech = []
+                        # save recognized speech
+                        if speech:
+                            text_file = open(out_name +'_sp.txt', "w")
+                            text_file.write(speech)
+                            text_file.close()
+                        else:
+                            os.remove(out_name+'.mp4')
 
-                    # save recognized speech
-                    if speech:
-                        text_file = open(out_name +'_sp.txt', "w")
-                        text_file.write(speech)
-                        text_file.close()
-                    else:
-                        os.remove(out_name+'.mp4')
-
-                    # delete audio file
-                    os.remove(out_name +'.wav')
+                        # delete audio file
+                        os.remove(out_name +'.wav')
+                    
         
             # Release resources
             cap.release()
