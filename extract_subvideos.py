@@ -10,7 +10,8 @@ import speech_recognition as sr
 import datetime
 
 
-videos_directory = '/datasets/Our_dataset/TED'
+videos_directory = '/media/juan/Data/our_dataset/holasoygerman'
+out_dir = '/media/juan/Data/our_dataset/results/blogs/german'
 scale = 0.5
 max_bad_frames = 5
 min_area = 2500
@@ -23,20 +24,29 @@ def main():
     # Create video window
     cv2.namedWindow('Original')
 
+    files_list = os.listdir(videos_directory)
+    files_list.sort()
+
     # traverse all the files
     video_id = 0
-    for file in os.listdir(videos_directory):
+    for file in files_list:
         # Search for the video files in videos_directory
         if file.endswith(".mp4"):
             video_id += 1
             video_name = file
             subtitle_name = video_name[0:-4] + '.es.srt'
 
+            # Check if subtitle exists
+            if not os.path.isfile(os.path.join(videos_directory, subtitle_name)):
+                print('Subtitle ', subtitle_name, 'not found. Skipping.')
+                #os.remove(os.path.join(videos_directory, video_name))
+                continue
+
             print('Processing video:', video_name)
             print('with subtitle:', subtitle_name)
 
             # create output directory
-            output_dir = os.path.join(videos_directory, str(video_id)) 
+            output_dir = os.path.join(out_dir, str(video_id)) 
 
             if os.path.isdir(output_dir):
                 print(output_dir, ' already exists. Skipping.')
@@ -102,9 +112,16 @@ def main():
 
                     # capture next frame
                     ret, frame = cap.read()
+
+                    if not ret:
+                        continue
+
                     frame_count += 1
 
                     # resize frame for faster processing
+                    if frame.shape[0] <= 0 or frame.shape[1] <= 0:
+                        continue
+                        
                     frame_small = cv2.resize(frame, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
 
                     # detect faces and landmarjs
