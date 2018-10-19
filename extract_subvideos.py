@@ -10,8 +10,8 @@ import speech_recognition as sr
 import datetime
 
 
-videos_directory = '/media/juan/Data/our_dataset/holasoygerman'
-out_dir = '/media/juan/Data/our_dataset/results/blogs/german'
+videos_directory = '/datasets/Our_dataset/Testimonios'
+out_dir = '/datasets/Our_dataset/results/Testimonios'
 scale = 0.5
 max_bad_frames = 5
 min_area = 2500
@@ -34,7 +34,7 @@ def main():
         if file.endswith(".mp4"):
             video_id += 1
             video_name = file
-            subtitle_name = video_name[0:-4] + '.es.srt'
+            subtitle_name = video_name[0:-4] + '.es.transcribed.srt'
 
             # Check if subtitle exists
             if not os.path.isfile(os.path.join(videos_directory, subtitle_name)):
@@ -174,7 +174,7 @@ def main():
                 
                     # Read keyboard and exit if ESC was pressed
                     
-                    k = cv2.waitKey(10) & 0xFF
+                    k = cv2.waitKey(1) & 0xFF
                     if k ==27:
                         exit()
 
