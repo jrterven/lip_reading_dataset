@@ -3,7 +3,7 @@ import pandas as pd
 import subprocess
 
 directory = '/datasets/Our_dataset'
-selected_cat = 'rincon_giorgio'
+selected_cat = 'holasoygerman'
 
 # Read file names in videos directory
 video_names = []

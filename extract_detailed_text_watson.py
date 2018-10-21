@@ -6,7 +6,7 @@ import json
 from natsort import natsorted
 
 directory = '/datasets/Our_dataset'
-selected_cat = 'TED'
+selected_cat = 'holasoygerman'
 
 IBM_USERNAME = ""
 IBM_PASSWORD = ""
@@ -38,21 +38,21 @@ for audio_name in audio_names:
     else:
         link = data.iloc[0]['Link']
 
-    # Extract text using Watson
-    print('Extracting detailed text using Watson for', audio_name)
-    audio_path = os.path.join(directory, selected_cat, audio_name)
+        # Extract text using Watson
+        print('Extracting detailed text using Watson for', audio_name)
+        audio_path = os.path.join(directory, selected_cat, audio_name)
 
-    with open(audio_path, "rb") as audio_file:
-        result = speech_to_text.recognize(audio_file, content_type="audio/wav",
-                        model='es-ES_BroadbandModel',
-                        timestamps=True, word_confidence=True).get_result()
-        
-        # add the link to the results
-        result['link'] = link
+        with open(audio_path, "rb") as audio_file:
+            result = speech_to_text.recognize(audio_file, content_type="audio/wav",
+                            model='es-ES_BroadbandModel',
+                            timestamps=True, word_confidence=True).get_result()
+            
+            # add the link to the results
+            result['link'] = link
 
-        # save json file
-        out_json_path = audio_path[:-4] + '.json'
-        with open(out_json_path, 'w') as outfile:
-            json.dump(result, outfile)
+            # save json file
+            out_json_path = audio_path[:-4] + '.json'
+            with open(out_json_path, 'w') as outfile:
+                json.dump(result, outfile)
 
     
