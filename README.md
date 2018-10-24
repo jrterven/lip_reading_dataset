@@ -51,7 +51,7 @@ donde:
 - *directorio_de_resultados* ruta del directorio donde se desean almacenar los resultados
 - *archivo_de_anotaciones* nombre del archivo donde se guardan las anotaciones.
 
-**Publicacion**
+**Publicacion**  
 Base de datos para reconocimiento de habla audio-visual. 
 Mejia Kenneth, Perales Pamela,  Morales Raul, Córdova Diana, Romero Alejandro, Terven Juan.
 En revision.
