@@ -7,31 +7,53 @@ import math
 import datetime
 import json
 from natsort import natsorted
+import subprocess
+import math
+import csv
 
+SAVE_VIDEO_PORTIONS = False
 videos_directory = '/datasets/Our_dataset'
 results_dir = '/datasets/Our_dataset/results2'
-vids_name = 'TED'
-vid_proc_name = 'videos_processed.dat'
-scale = 0.5
-max_bad_frames = 5
+vids_name = 'CNN'
+vid_proc_name = 'videos_processed.txt'
+dataset_annotation_file = 'annotations.csv'
+scale = 0.3
+max_bad_frames = 10
 min_area = 2500
+csv_columns = ['text', 'conf', 'start', 'end', 'bounding_box', 'link']
 
 def main():
 
     # Create video window
     cv2.namedWindow('Original')
 
-    # TODO: open or create list with processed files
+    # load or create list with processed files
+    processed_files = []
     videos_processed_exists = os.path.isfile(os.path.join(results_dir, vid_proc_name))
     if not videos_processed_exists:
-        f= open(os.path.join(results_dir, vid_proc_name),"r")
-    # TODO:  load processed files
+        with open(os.path.join(results_dir, vid_proc_name), "w") as fp:
+            for pfiles in processed_files:
+                print(pfiles, file=fp)
+    else:
+        with open(os.path.join(results_dir, vid_proc_name)) as fp:
+            processed_files = fp.read().splitlines()
 
+    # Create annotation file the first time
+    annotation_exists = os.path.isfile(os.path.join(results_dir, dataset_annotation_file))
+    if not annotation_exists:
+        
+        try:
+            with open(os.path.join(results_dir, dataset_annotation_file), 'w') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+                writer.writeheader()
+        except IOError:
+            print("Error creating annotaton file. I/O error") 
+    
     # Get json files list names in videos directory
     files_list = []
     for ann_file in os.listdir(os.path.join(videos_directory, vids_name)):
         if ann_file.endswith(".json"):
-            files_list.append(ann_file[0:-6])
+            files_list.append(ann_file[0:-5])
     files_list = natsorted(files_list)
 
     num_files = len(files_list)
@@ -39,21 +61,33 @@ def main():
 
     # traverse all the files
     for file in files_list:
+        # check if current video is not in alredy processed 
+        if file in processed_files:
+            print(file, 'has already been processed. Skipping it.')
+            continue
+
+        num_output_video = 0
+        
         # Search for the video files in videos_directory
         video_name = file + '.mp4'
         print('Processing video:', video_name)
 
-        #TODO: check if current video is not in alredy processed files
+        if SAVE_VIDEO_PORTIONS:
+            # create output directory
+            output_dir = os.path.join(results_dir, vids_name, file)
+
+            if not os.path.isdir(output_dir):
+                os.mkdir(output_dir)
 
         # Load watson results
-        with open(os.path.join(videos_directory, file + '.json')) as f:
+        with open(os.path.join(videos_directory, vids_name, file + '.json')) as f:
             stt_results = json.load(f)
 
         # Extract all the words with confidence >90
         words_data = extract_words_from_watson_results(stt_results, max_words=5)
 
         # Start the video capture
-        cap = cv2.VideoCapture(os.path.join(videos_directory, video_name))
+        cap = cv2.VideoCapture(os.path.join(videos_directory, vids_name, video_name))
 
         # Extract video metadata
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -67,13 +101,26 @@ def main():
         t = cv2.getTickCount() # initiate the tickCounter
         count = 0
 
+        for entry in words_data:
+            # Extract speech to text data
+            print('entry:', type(entry), entry)
+            s_sec, s_millisec = divmod(float(entry['start']), 1)  # format is in seconds
+            e_sec, e_millisec = divmod(float(entry['end']), 1)
+            s_min = 0
+            e_min = 0
+            s_millisec = s_millisec * 1000
+            e_millisec = e_millisec * 1000
+            
+            print('s_sec, s_millisec:', s_sec, s_millisec)
 
-        for entry in enumerate(words_data):
-            # Extract subtitle data
-            start_time = entry['start']
-            end_time = entry['end']
+            if s_sec >= 60:
+                s_min = math.floor(s_sec / 60.0)
+                s_sec = s_sec % 60
+            if e_sec >= 60:
+                e_min = math.floor(e_sec / 60.0)
+                e_sec = e_sec % 60
 
-            # Determine video frames involved in this subtitle
+            # Determine video frames involved in stt entry
             min_frame = s_min*fps*60 + (s_sec*fps)
             max_frame = e_min*fps*60 + (e_sec*fps)
 
@@ -148,7 +195,7 @@ def main():
                     # draw the bounding box and landmarks on original frame
                     frame = show_bboxes(frame, bounding_boxes, landmarks)
 
-                    # Put fps at which we are processinf camera feed on frame
+                    # Put fps at which we are processing camera feed on frame
                     cv2.putText(frame, "{0:.2f}-fps".format(fps_processing),
                                 (50, height-50), cv2.FONT_HERSHEY_COMPLEX,
                                 1, (0, 0, 255), 2)
@@ -157,10 +204,11 @@ def main():
                 cv2.imshow('Original',frame)
             
                 # Read keyboard and exit if ESC was pressed
-                
                 k = cv2.waitKey(1) & 0xFF
                 if k ==27:
                     exit()
+                elif k == ord('q'):
+                    break
 
                 # increment frame counter
                 count = count + 1
@@ -182,65 +230,52 @@ def main():
                 bbw = bbx2 - bbx1
                 bbh = bby2 - bby1
 
-                s_hr = 0
-                e_hr = 0
-                if s_min >= 60:
-                    s_hr = math.floor(s_min / 60)
-                    s_min = s_min % 60
-                if e_min >= 60:
-                    e_hr = math.floor(e_min / 60)
-                    e_min = e_min % 60
+                entry['bounding_box'] = [bbx1, bby1, bbw, bbh]
+                print('entry:', type(entry), entry)
 
-                # cut and crop video
-                # ffmpeg -i input.mp4 -ss hh:mm:ss -filter:v crop=w:h:x:y -c:a copy -to hh:mm:ss output.mp4
-                ss = "{0:02d}:{1:02d}:{2:02d}".format(s_hr, s_min, s_sec)
-                es = "{0:02d}:{1:02d}:{2:02d}".format(e_hr, e_min, e_sec)
-                crop = "crop={0:1d}:{1:1d}:{2:1d}:{3:1d}".format(bbw, bbh, bbx1, bby1)
+                if SAVE_VIDEO_PORTIONS:
+                    s_hr = 0
+                    e_hr = 0
+                    if s_min >= 60:
+                        s_hr = math.floor(s_min / 60)
+                        s_min = s_min % 60
+                    if e_min >= 60:
+                        e_hr = math.floor(e_min / 60)
+                        e_min = e_min % 60
 
-                out_name = os.path.join(output_dir, str(num_output_video))
+                    # cut and crop video
+                    # ffmpeg -i input.mp4 -ss hh:mm:ss -filter:v crop=w:h:x:y -c:a copy -to hh:mm:ss output.mp4
+                    ss = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(s_hr, s_min, int(s_sec), math.ceil(s_millisec))
+                    es = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(e_hr, e_min, int(e_sec), math.ceil(e_millisec))
+                    crop = "crop={0:1d}:{1:1d}:{2:1d}:{3:1d}".format(bbw, bbh, bbx1, bby1)
 
-                subprocess.call(['ffmpeg', #'-hide_banner', '-loglevel', 'panic',
-                                '-i', os.path.join(videos_directory, video_name), '-ss', ss,
-                                '-filter:v', crop, '-c:a', 'copy', '-to', es,
-                                out_name +'.mp4'])
+                    out_name = os.path.join(output_dir, str(num_output_video))
 
-                # save subtitles
-                # text_file = open(out_name +'_sub.txt', "w")
-                # text_file.write(text)
-                # text_file.close()
-
-                # extract audio from video crop
-                if os.path.isfile(out_name+'.mp4'):
-                    #ffmpeg -i /home/juan/Videos/ted/1.mp4 -acodec pcm_s16le -ac 1 -ar 16000 out.wav
                     subprocess.call(['ffmpeg', #'-hide_banner', '-loglevel', 'panic',
-                                    '-i', out_name+'.mp4',
-                                    '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '16000',
-                                    out_name +'.wav'])
+                                    '-i', os.path.join(videos_directory, vids_name, video_name), '-ss', ss,
+                                    '-filter:v', crop, '-c:a', 'copy', '-to', es,
+                                    out_name +'.mp4'])
+                                            # save recognized speech
+                    text_file = open(out_name +'.txt', "w")
+                    text_file.write(entry['text'])
+                    text_file.close()
 
-                if os.path.isfile(out_name+'.wav'):
-                    # recognize audio
-                    with sr.AudioFile(out_name +'.wav') as source: audio = r.record(source)
-                    try:
-                        speech = r.recognize_google(audio, language='es-MX')
-                    except sr.UnknownValueError:
-                        print('Unknow conversion error')
-                        speech = []
+        # delete the entries without bounding box
+        words_data[:] = [dic for dic in words_data if len(dic['bounding_box']) > 0]
 
-                    # save recognized speech
-                    if speech:
-                        text_file = open(out_name +'_sp.txt', "w")
-                        text_file.write(speech)
-                        text_file.close()
-                    else:
-                        os.remove(out_name+'.mp4')
+        # append results to annotation file
+        append_annotation_file(os.path.join(results_dir, dataset_annotation_file), words_data)
 
-                    # delete audio file
-                    os.remove(out_name +'.wav')
-                
+        # save name of processed file
+        processed_files.append(file)
+        with open(os.path.join(results_dir, vid_proc_name), "w") as fp:
+            for p_file in processed_files:
+                print(p_file, file=fp)
+
         
-            # Release resources
-            cap.release()
-            cv2.destroyAllWindows()
+    # Release resources
+    cap.release()
+    cv2.destroyAllWindows()
 
 def extract_text_conf_ts(s_idx, max_words, num_words, timestamps, conf, link):
     text = ''
@@ -255,7 +290,7 @@ def extract_text_conf_ts(s_idx, max_words, num_words, timestamps, conf, link):
     avg_conf = round(avg_conf/num_words, 2)
     if len(text.strip()) >= 4:
         out_entry = {'text': text.strip(), 'conf': avg_conf,
-                     'start':start, 'end': end,
+                     'start':start, 'end': end, 'bounding_box': [],
                      'link': link}
     else:
         out_entry = {}
@@ -292,6 +327,15 @@ def extract_words_from_watson_results(stt_results, max_words=5):
                 out_data.append(out_entry)
             
     return out_data
+
+def append_annotation_file(csv_file, data):
+    try:
+        with open(csv_file, 'a') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+            for entry in data:
+                writer.writerow(entry)
+    except IOError:
+        print("I/O error") 
 
 if __name__== "__main__":
     main()

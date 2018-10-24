@@ -6,7 +6,7 @@ import json
 from natsort import natsorted
 
 directory = '/datasets/Our_dataset'
-selected_cat = 'holasoygerman'
+selected_cat = 'CNN'
 
 IBM_USERNAME = ""
 IBM_PASSWORD = ""
@@ -16,7 +16,7 @@ speech_to_text = SpeechToTextV1(username=IBM_USERNAME, password=IBM_PASSWORD)
 # Read wave file names in videos directory
 audio_names = []
 for video_file in os.listdir(os.path.join(directory, selected_cat)):
-    if video_file.endswith(".wav"):
+    if video_file.endswith(".wav") and not os.path.isfile(os.path.join(directory, selected_cat, video_file[0:-4] + '.json')):
         audio_names.append(video_file)
 audio_names = natsorted(audio_names)
 
