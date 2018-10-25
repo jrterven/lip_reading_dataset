@@ -1,3 +1,16 @@
+''' 
+    Generate entries for the dataset by extracting bounding boxes
+    and time stamps from videos.
+
+    Run as:
+    python extract_subvideos.py --dir [directorio] --cat [categoria]
+            --vids_log [archivo_log] --results_dir [directorio_de_resultados]
+            --ann_file [archivo_de_anotaciones]
+
+    Juan Terven
+    Diana Cordova
+    Oct 2018
+'''
 from src import detect_faces, show_bboxes
 import numpy as np
 import cv2
@@ -10,26 +23,32 @@ from natsort import natsorted
 import subprocess
 import math
 import csv
+import argparse
 
-SAVE_VIDEO_PORTIONS = False
-videos_directory = '/datasets/Our_dataset'
-results_dir = '/datasets/Our_dataset/results2'
-vids_name = 'CNN'
-vid_proc_name = 'videos_processed.txt'
-dataset_annotation_file = 'annotations.csv'
-scale = 0.3
-max_bad_frames = 10
-min_area = 2500
+scale = 0.3    # downscale factor for input images to increase processing speed
+max_bad_frames = 10  # maximum number of frames without face
+min_area = 2500      # minimum face size (area in pixels)
 csv_columns = ['text', 'conf', 'start', 'end', 'bounding_box', 'link']
 
-def main():
+def main(args):
+
+    videos_directory = args.videos_dir
+    results_dir = args.results_dir
+    vids_name = args.category
+    vid_proc_name = args.log_file
+    dataset_annotation_file = args.ann_file
+    if args.save_videos == 'True':
+        save_videos = True
+    else:
+        save_videos = False
 
     # Create video window
     cv2.namedWindow('Original')
 
     # load or create list with processed files
     processed_files = []
-    videos_processed_exists = os.path.isfile(os.path.join(results_dir, vid_proc_name))
+    videos_processed_exists = os.path.isfile(
+        os.path.join(results_dir, vid_proc_name))
     if not videos_processed_exists:
         with open(os.path.join(results_dir, vid_proc_name), "w") as fp:
             for pfiles in processed_files:
@@ -39,11 +58,13 @@ def main():
             processed_files = fp.read().splitlines()
 
     # Create annotation file the first time
-    annotation_exists = os.path.isfile(os.path.join(results_dir, dataset_annotation_file))
+    annotation_exists = os.path.isfile(os.path.join(
+                        results_dir, dataset_annotation_file))
     if not annotation_exists:
         
         try:
-            with open(os.path.join(results_dir, dataset_annotation_file), 'w') as csvfile:
+            with open(os.path.join(
+                results_dir, dataset_annotation_file), 'w') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
                 writer.writeheader()
         except IOError:
@@ -72,7 +93,7 @@ def main():
         video_name = file + '.mp4'
         print('Processing video:', video_name)
 
-        if SAVE_VIDEO_PORTIONS:
+        if save_videos:
             # create output directory
             output_dir = os.path.join(results_dir, vids_name, file)
 
@@ -80,14 +101,16 @@ def main():
                 os.mkdir(output_dir)
 
         # Load watson results
-        with open(os.path.join(videos_directory, vids_name, file + '.json')) as f:
+        with open(os.path.join(
+            videos_directory, vids_name, file + '.json')) as f:
             stt_results = json.load(f)
 
         # Extract all the words with confidence >90
         words_data = extract_words_from_watson_results(stt_results, max_words=5)
 
         # Start the video capture
-        cap = cv2.VideoCapture(os.path.join(videos_directory, vids_name, video_name))
+        cap = cv2.VideoCapture(os.path.join(
+            videos_directory, vids_name, video_name))
 
         # Extract video metadata
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -104,7 +127,7 @@ def main():
         for entry in words_data:
             # Extract speech to text data
             print('entry:', type(entry), entry)
-            s_sec, s_millisec = divmod(float(entry['start']), 1)  # format is in seconds
+            s_sec, s_millisec = divmod(float(entry['start']), 1)
             e_sec, e_millisec = divmod(float(entry['end']), 1)
             s_min = 0
             e_min = 0
@@ -153,7 +176,8 @@ def main():
                 if frame.shape[0] <= 0 or frame.shape[1] <= 0:
                     continue
                     
-                frame_small = cv2.resize(frame, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+                frame_small = cv2.resize(frame, (0, 0), fx=scale, fy=scale,
+                                         interpolation=cv2.INTER_LINEAR)
 
                 # detect faces and landmarjs
                 bounding_boxes, landmarks = detect_faces(frame_small)
@@ -162,13 +186,14 @@ def main():
                 bounding_boxes /= scale
                 landmarks /= scale
 
-                # if it detects less than or more than 1 person, go to next subtitle
+                # if it detects less than or more than 1 person
+                # go to next subtitle
                 if num_people != 1:                    
                     consecutive_frames_no_people += 1
                     
                 if consecutive_frames_no_people >= max_bad_frames:
                     print(consecutive_frames_no_people,
-                            ' frames without 1 person. Skiping to next subtitle')
+                        ' frames without 1 person. Skiping to next subtitle')
                     valid_video = False
                     break
                 
@@ -178,12 +203,12 @@ def main():
 
                     # extract the bounding box
                     bb = bounding_boxes[0]
-                    x1, y1, x2, y2 = int(bb[0]), int(bb[1]), int(bb[2]), int(bb[3])
+                    x1, y1 = int(bb[0]), int(bb[1])
+                    x2, y2 = int(bb[2]), int(bb[3])
 
                     area = (x2 - x1) * (y2 - y1)
                     if area < min_area:
                         valid_video = False
-                        #print('area = ', area, ' skiping to next subtitle.')
                         break
 
                     # save bounding box coordinates for final crop
@@ -233,7 +258,7 @@ def main():
                 entry['bounding_box'] = [bbx1, bby1, bbw, bbh]
                 print('entry:', type(entry), entry)
 
-                if SAVE_VIDEO_PORTIONS:
+                if save_videos:
                     s_hr = 0
                     e_hr = 0
                     if s_min >= 60:
@@ -245,26 +270,34 @@ def main():
 
                     # cut and crop video
                     # ffmpeg -i input.mp4 -ss hh:mm:ss -filter:v crop=w:h:x:y -c:a copy -to hh:mm:ss output.mp4
-                    ss = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(s_hr, s_min, int(s_sec), math.ceil(s_millisec))
-                    es = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(e_hr, e_min, int(e_sec), math.ceil(e_millisec))
-                    crop = "crop={0:1d}:{1:1d}:{2:1d}:{3:1d}".format(bbw, bbh, bbx1, bby1)
+                    ss = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(
+                        s_hr, s_min, int(s_sec), math.ceil(s_millisec))
+                    es = "{0:02d}:{1:02d}:{2:02d}.{3:03d}".format(
+                        e_hr, e_min, int(e_sec), math.ceil(e_millisec))
+                    crop = "crop={0:1d}:{1:1d}:{2:1d}:{3:1d}".format(
+                        bbw, bbh, bbx1, bby1)
 
                     out_name = os.path.join(output_dir, str(num_output_video))
 
                     subprocess.call(['ffmpeg', #'-hide_banner', '-loglevel', 'panic',
-                                    '-i', os.path.join(videos_directory, vids_name, video_name), '-ss', ss,
-                                    '-filter:v', crop, '-c:a', 'copy', '-to', es,
-                                    out_name +'.mp4'])
+                                    '-i', os.path.join(
+                                    videos_directory, vids_name, video_name),
+                                    '-ss', ss,
+                                    '-filter:v', crop, '-c:a', 'copy',
+                                    '-to', es, out_name +'.mp4'])
                                             # save recognized speech
                     text_file = open(out_name +'.txt', "w")
-                    text_file.write(entry['text'])
+                    text_file.write(entry['text'] + '\n')
+                    text_file.write(str(entry['conf']))
                     text_file.close()
 
         # delete the entries without bounding box
-        words_data[:] = [dic for dic in words_data if len(dic['bounding_box']) > 0]
+        words_data[:] = [dic for dic in words_data
+                        if len(dic['bounding_box']) > 0]
 
         # append results to annotation file
-        append_annotation_file(os.path.join(results_dir, dataset_annotation_file), words_data)
+        append_annotation_file(os.path.join(
+            results_dir, dataset_annotation_file), words_data)
 
         # save name of processed file
         processed_files.append(file)
@@ -338,4 +371,22 @@ def append_annotation_file(csv_file, data):
         print("I/O error") 
 
 if __name__== "__main__":
-    main()
+    
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description='Extract subvideos')
+    parser.add_argument('--dir', dest='videos_dir',
+                        help='Directory with videos', type=str)
+    parser.add_argument('--cat', dest='category',
+                        help='Video category', type=str)
+    parser.add_argument('--vids_log', dest='log_file',
+                        help='Name of log file', type=str)
+    parser.add_argument('--results_dir', dest='results_dir',
+                        help='Directory with results', type=str)
+    parser.add_argument('--ann_file', dest='ann_file',
+                        help='Annotations file (csv)', type=str)
+    parser.add_argument('--save_videos', dest='save_videos',
+                        help='Save videos', type=str, default='False')
+    
+    args = parser.parse_args()
+
+    main(args)

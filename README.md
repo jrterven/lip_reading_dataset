@@ -17,6 +17,11 @@ La salida generada consiste en un archivo CSV con los siguientes campos:
 
 ## 1. Descargar los videos y colocarlos en un directorio.
 Se pueden generar varios directorios para distintas categorias. E.g. noticias, blogs, etc.
+Crear un archivo de hoja de calculo cuyo nombre coincida con la categoria que contenga el enlace del video
+seguido del nombre del video descargado. La primera fila de este archivo debe contener *Link* en la primera columna y *Video* en la segunda columna. Este archivo sirve para llevar el control del link de cada video
+y es usado para generar la base de datos con el link.
+
+
 ## 2. Extraer el audio de los videos 
 Para extraer el audio en archivo .wav ejecute el script **extract_wav_files.py**
 ```
@@ -40,9 +45,9 @@ python extract_detailed_text_watson.py --dir [directorio] --cat [categoria]
 ```
 
 ## 4. Extraer subvideos
-Una vez que se tienen los subtitulos de cada video. Ejecute **extract_subvideos2.py**
+Una vez que se tienen los subtitulos de cada video. Ejecute **extract_subvideos.py**
 ```
-python extract_subvideos2.py --dir [directorio] --cat [categoria] --vids_log [archivo_log] --results_dir [directorio_de_resultados] --ann_file [archivo_de_anotaciones]
+python extract_subvideos.py --dir [directorio] --cat [categoria] --vids_log [archivo_log] --results_dir [directorio_de_resultados] --ann_file [archivo_de_anotaciones]
 ```
 donde:
 - *directorio* es la ruta la directorio principal del paso 1   
@@ -52,8 +57,8 @@ donde:
 - *archivo_de_anotaciones* nombre del archivo donde se guardan las anotaciones.
 
 **Publicacion**  
-Base de datos para reconocimiento de habla audio-visual. 
-Mejia Kenneth, Perales Pamela,  Morales Raul, Córdova Diana, Romero Alejandro, Terven Juan.
+Base de datos para reconocimiento de habla audio-visual.   
+Mejia Kenneth, Perales Pamela,  Morales Raul, Córdova Diana, Romero Alejandro, Terven Juan.  
 En revision.
 
 Licencia
